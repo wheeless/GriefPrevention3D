@@ -1,0 +1,422 @@
+package me.ryanhamshire.GriefPrevention;
+
+import com.avernix.gp3d.region.Region;
+import com.avernix.gp3d.region.RegionManager;
+import com.avernix.gp3d.storage.MySqlRegionStorage;
+import com.avernix.gp3d.storage.RegionMigrator;
+import com.avernix.gp3d.storage.RegionStorage;
+import com.avernix.gp3d.storage.SqliteRegionStorage;
+import org.bukkit.Location;
+import org.bukkit.World;
+
+import java.io.File;
+import java.lang.reflect.Proxy;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.logging.Logger;
+
+/**
+ * Exercises the logic that decides who may act where. Lives in GriefPrevention's package so it can
+ * build real Claim objects (the no-arg constructor and `id` field are package-private).
+ */
+public class Gp3dTest
+{
+    private static int passed = 0;
+    private static int failed = 0;
+    private static World world;
+
+    public static void main(String[] args) throws Exception
+    {
+        world = fakeWorld("world");
+
+        trustHierarchy();
+        containment();
+        stackedRegions();
+        nestedRegions();
+        claimChainLookup();
+        storageRoundTrip();
+        migration();
+        mysqlRoundTrip();
+
+        System.out.println();
+        System.out.println(failed == 0
+                ? "ALL PASSED (" + passed + " assertions)"
+                : failed + " FAILED, " + passed + " passed");
+        if (failed > 0) System.exit(1);
+    }
+
+    // ---- tests ---------------------------------------------------------------------------
+
+    /** Region trust must behave exactly like GP trust: Build implies Container implies Access. */
+    private static void trustHierarchy()
+    {
+        section("trust hierarchy");
+        UUID bob = UUID.randomUUID();
+        UUID eve = UUID.randomUUID();
+        Region region = region(1, 100, 0, 0, 64, 10, 10, 80);
+        region.setTrust(bob, ClaimPermission.Build);
+
+        check("build trust grants build", region.grants(bob, ClaimPermission.Build));
+        check("build trust grants container", region.grants(bob, ClaimPermission.Container));
+        check("build trust grants access", region.grants(bob, ClaimPermission.Access));
+        check("build trust does NOT grant manage", !region.grants(bob, ClaimPermission.Manage));
+        check("build trust does NOT grant edit", !region.grants(bob, ClaimPermission.Edit));
+        check("untrusted player is denied", !region.grants(eve, ClaimPermission.Access));
+
+        Region containerOnly = region(2, 100, 0, 0, 64, 10, 10, 80);
+        containerOnly.setTrust(bob, ClaimPermission.Container);
+        check("container trust grants container", containerOnly.grants(bob, ClaimPermission.Container));
+        check("container trust grants access", containerOnly.grants(bob, ClaimPermission.Access));
+        check("container trust does NOT grant build", !containerOnly.grants(bob, ClaimPermission.Build));
+
+        Region publicRegion = region(3, 100, 0, 0, 64, 10, 10, 80);
+        publicRegion.setTrust(Region.PUBLIC, ClaimPermission.Access);
+        check("public access applies to anyone", publicRegion.grants(eve, ClaimPermission.Access));
+        check("public access does not grant build", !publicRegion.grants(eve, ClaimPermission.Build));
+
+        Region managed = region(4, 100, 0, 0, 64, 10, 10, 80);
+        managed.setTrust(bob, ClaimPermission.Manage);
+        check("manage trust grants manage", managed.grants(bob, ClaimPermission.Manage));
+        check("manage trust does NOT grant build", !managed.grants(bob, ClaimPermission.Build));
+        check("manage trust does NOT grant edit", !managed.grants(bob, ClaimPermission.Edit));
+        check("manage trust does NOT grant container", !managed.grants(bob, ClaimPermission.Container));
+
+        check("region owner always allowed", region.grants(region.getOwner(), ClaimPermission.Edit));
+    }
+
+    private static void containment()
+    {
+        section("containment boundaries");
+        Region region = region(1, 100, 0, 0, 64, 10, 10, 80);
+
+        check("min corner inclusive", region.contains(0, 64, 0));
+        check("max corner inclusive", region.contains(10, 80, 10));
+        check("one below band excluded", !region.contains(5, 63, 5));
+        check("one above band excluded", !region.contains(5, 81, 5));
+        check("outside footprint excluded", !region.contains(11, 70, 5));
+        check("inside band included", region.contains(5, 72, 5));
+        check("volume is inclusive", region.getVolume() == 11L * 17L * 11L);
+
+        check("location in other world excluded",
+                !region.contains(new Location(fakeWorld("nether"), 5, 72, 5)));
+        check("location in same world included",
+                region.contains(new Location(world, 5, 72, 5)));
+    }
+
+    /** The whole point of the design: two regions sharing a footprint at different heights. */
+    private static void stackedRegions() throws Exception
+    {
+        section("stacked regions");
+        RegionManager manager = manager();
+        Claim claim = claim(100, UUID.randomUUID(), null);
+
+        Region ground = region(1, 100, 0, 0, 64, 15, 15, 79);
+        Region upper = region(2, 100, 0, 0, 80, 15, 15, 95);
+        UUID alice = UUID.randomUUID();
+        UUID bob = UUID.randomUUID();
+        ground.setTrust(alice, ClaimPermission.Build);
+        upper.setTrust(bob, ClaimPermission.Build);
+        manager.add(ground);
+        manager.add(upper);
+
+        Region atY70 = manager.findGoverning(claim, new Location(world, 5, 70, 5));
+        Region atY85 = manager.findGoverning(claim, new Location(world, 5, 85, 5));
+        Region atY120 = manager.findGoverning(claim, new Location(world, 5, 120, 5));
+
+        check("y=70 resolves to ground floor", atY70 != null && atY70.getId() == 1);
+        check("y=85 resolves to upper floor", atY85 != null && atY85.getId() == 2);
+        check("y=120 resolves to no region", atY120 == null);
+
+        check("alice may build downstairs", atY70.grants(alice, ClaimPermission.Build));
+        check("bob may NOT build downstairs", !atY70.grants(bob, ClaimPermission.Build));
+        check("bob may build upstairs", atY85.grants(bob, ClaimPermission.Build));
+        check("alice may NOT build upstairs", !atY85.grants(alice, ClaimPermission.Build));
+    }
+
+    /** When regions overlap, the smallest (innermost) one governs. */
+    private static void nestedRegions() throws Exception
+    {
+        section("nested regions");
+        RegionManager manager = manager();
+        Claim claim = claim(100, UUID.randomUUID(), null);
+
+        Region big = region(1, 100, 0, 0, 64, 50, 50, 120);
+        Region small = region(2, 100, 10, 10, 70, 20, 20, 80);
+        manager.add(big);
+        manager.add(small);
+
+        Region inner = manager.findGoverning(claim, new Location(world, 15, 75, 15));
+        Region outer = manager.findGoverning(claim, new Location(world, 40, 75, 40));
+        check("innermost region wins on overlap", inner != null && inner.getId() == 2);
+        check("outer region governs elsewhere", outer != null && outer.getId() == 1);
+
+        small.setPriority(-5);
+        Region afterPriority = manager.findGoverning(claim, new Location(world, 15, 75, 15));
+        check("priority beats volume", afterPriority != null && afterPriority.getId() == 1);
+
+        check("findAllAt returns both", manager.findAllAt(claim, new Location(world, 15, 75, 15)).size() == 2);
+    }
+
+    /** A region on a parent claim must still apply when GP resolves an inner subdivision. */
+    private static void claimChainLookup() throws Exception
+    {
+        section("claim chain lookup");
+        RegionManager manager = manager();
+        Claim parent = claim(100, UUID.randomUUID(), null);
+        Claim subdivision = claim(101, parent.ownerID, parent);
+
+        Region onParent = region(1, 100, 0, 0, 64, 50, 50, 80);
+        manager.add(onParent);
+
+        check("parent claim has regions", manager.hasAnyRegion(parent));
+        check("subdivision sees parent's regions", manager.hasAnyRegion(subdivision));
+        check("region resolves through subdivision",
+                manager.findGoverning(subdivision, new Location(world, 5, 70, 5)) != null);
+
+        Claim unrelated = claim(999, UUID.randomUUID(), null);
+        check("unrelated claim has no regions", !manager.hasAnyRegion(unrelated));
+
+        check("removeForClaim drops them", manager.removeForClaim(100) == 1);
+        check("gone after removal", !manager.hasAnyRegion(parent));
+    }
+
+    private static void storageRoundTrip() throws Exception
+    {
+        section("sqlite round trip");
+        File file = Files.createTempFile("gp3d-test", ".db").toFile();
+        file.delete();
+        Logger logger = Logger.getLogger("gp3d-test");
+
+        UUID owner = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+
+        SqliteRegionStorage storage = new SqliteRegionStorage(file, "gp3d_", logger);
+        storage.initialise();
+        RegionManager manager = new RegionManager(storage);
+        manager.loadAll();
+
+        check("starts empty", manager.size() == 0);
+        check("first id is 1", manager.nextId() == 1L);
+
+        Region region = new Region(manager.nextId(), 42, "world", owner, "Shop", 3,
+                0, 64, 0, 10, 80, 10);
+        region.setTrust(friend, ClaimPermission.Container);
+        region.setTrust(Region.PUBLIC, ClaimPermission.Access);
+        manager.add(region);
+        check("second id is 2", manager.nextId() == 2L);
+        storage.shutdown();
+
+        // Reopen from scratch to prove everything survived the write.
+        SqliteRegionStorage reopened = new SqliteRegionStorage(file, "gp3d_", logger);
+        reopened.initialise();
+        RegionManager reloaded = new RegionManager(reopened);
+        reloaded.loadAll();
+
+        check("one region persisted", reloaded.size() == 1);
+        Region back = reloaded.byId(1);
+        check("region survived", back != null);
+        check("claim id survived", back.getClaimId() == 42);
+        check("name survived", "Shop".equals(back.getName()));
+        check("priority survived", back.getPriority() == 3);
+        check("owner survived", owner.equals(back.getOwner()));
+        check("bounds survived",
+                back.getMinY() == 64 && back.getMaxY() == 80 && back.getMaxX() == 10);
+        check("explicit trust survived", back.grants(friend, ClaimPermission.Container));
+        check("public trust survived", back.grants(UUID.randomUUID(), ClaimPermission.Access));
+        check("untrusted still denied", !back.grants(UUID.randomUUID(), ClaimPermission.Build));
+
+        reloaded.remove(1);
+        reopened.shutdown();
+
+        SqliteRegionStorage third = new SqliteRegionStorage(file, "gp3d_", logger);
+        third.initialise();
+        RegionManager empty = new RegionManager(third);
+        empty.loadAll();
+        check("deletion persisted", empty.size() == 0);
+        third.shutdown();
+        file.delete();
+    }
+
+    /** Import must renumber id collisions and drop regions whose claim is gone. */
+    private static void migration() throws Exception
+    {
+        section("migration between backends");
+        RegionManager target = manager();
+
+        Region existing = region(1, 100, 0, 0, 64, 10, 10, 80);
+        target.add(existing);
+
+        UUID friend = UUID.randomUUID();
+        Region collides = region(1, 100, 20, 20, 64, 30, 30, 80);   // same id as existing
+        collides.setTrust(friend, ClaimPermission.Build);
+        Region clean = region(7, 100, 40, 40, 64, 50, 50, 80);
+        Region orphan = region(8, 555, 0, 0, 64, 10, 10, 80);       // claim 555 does not exist
+
+        RegionMigrator.Result result = RegionMigrator.importInto(
+                List.of(collides, clean, orphan), target, claimId -> claimId == 100);
+
+        check("imported the two live regions", result.imported() == 2);
+        check("renumbered the id collision", result.renumbered() == 1);
+        check("skipped the orphan", result.skipped() == 1);
+        check("target now holds three", target.size() == 3);
+        check("original survived untouched", target.byId(1) == existing);
+        check("collision got a fresh id", collides.getId() != 1);
+        check("renumbered region kept its trust", collides.grants(friend, ClaimPermission.Build));
+        check("clean region kept its id", target.byId(7) == clean);
+        check("orphan was not imported", target.byId(8) == null);
+    }
+
+    /**
+     * Exercises the MySQL dialect against a real server when one is configured, since the DDL and
+     * the upsert clause differ from SQLite and neither is checked by compiling.
+     */
+    private static void mysqlRoundTrip() throws Exception
+    {
+        section("mysql round trip");
+        String host = System.getenv("GP3D_MYSQL_HOST");
+        if (host == null || host.isBlank())
+        {
+            System.out.println("  skipped (set GP3D_MYSQL_HOST to run)");
+            return;
+        }
+
+        int port = Integer.parseInt(System.getenv().getOrDefault("GP3D_MYSQL_PORT", "3306"));
+        String db = System.getenv().getOrDefault("GP3D_MYSQL_DB", "gp3d");
+        String user = System.getenv().getOrDefault("GP3D_MYSQL_USER", "root");
+        String pass = System.getenv().getOrDefault("GP3D_MYSQL_PASS", "");
+        String prefix = "gp3dtest_";
+        Logger logger = Logger.getLogger("gp3d-mysql-test");
+
+        UUID owner = UUID.randomUUID();
+        UUID friend = UUID.randomUUID();
+
+        RegionStorage storage = new MySqlRegionStorage(host, port, db, user, pass,
+                "useSSL=false&allowPublicKeyRetrieval=true", prefix, logger);
+        storage.initialise();
+
+        RegionManager manager = new RegionManager(storage);
+        manager.loadAll();
+        int baseline = manager.size();
+
+        Region region = new Region(manager.nextId(), 42, "world", owner, "Shop", 3,
+                0, 64, 0, 10, 80, 10);
+        region.setTrust(friend, ClaimPermission.Container);
+        region.setTrust(Region.PUBLIC, ClaimPermission.Access);
+        manager.add(region);
+        long id = region.getId();
+
+        // Save again to prove the upsert path updates rather than throwing on duplicate key.
+        region.setName("Renamed");
+        manager.add(region);
+        storage.shutdown();
+
+        RegionStorage reopened = new MySqlRegionStorage(host, port, db, user, pass,
+                "useSSL=false&allowPublicKeyRetrieval=true", prefix, logger);
+        reopened.initialise();
+        RegionManager reloaded = new RegionManager(reopened);
+        reloaded.loadAll();
+
+        Region back = reloaded.byId(id);
+        check("region persisted to mysql", back != null);
+        check("upsert updated rather than duplicated", reloaded.size() == baseline + 1);
+        check("name update survived", back != null && "Renamed".equals(back.getName()));
+        check("bounds survived", back != null && back.getMinY() == 64 && back.getMaxY() == 80);
+        check("owner survived", back != null && owner.equals(back.getOwner()));
+        check("explicit trust survived", back != null && back.grants(friend, ClaimPermission.Container));
+        check("public trust survived", back != null && back.grants(UUID.randomUUID(), ClaimPermission.Access));
+
+        reloaded.remove(id);
+        reopened.shutdown();
+
+        RegionStorage third = new MySqlRegionStorage(host, port, db, user, pass,
+                "useSSL=false&allowPublicKeyRetrieval=true", prefix, logger);
+        third.initialise();
+        RegionManager empty = new RegionManager(third);
+        empty.loadAll();
+        check("deletion persisted", empty.byId(id) == null);
+        third.shutdown();
+    }
+
+    // ---- helpers -------------------------------------------------------------------------
+
+    private static RegionManager manager() throws Exception
+    {
+        RegionManager manager = new RegionManager(new NoopStorage());
+        manager.loadAll();
+        return manager;
+    }
+
+    /** Footprint (minX,minZ)-(maxX,maxZ) with a vertical band of minY..maxY. */
+    private static Region region(long id, long claimId,
+                                 int minX, int minZ, int minY,
+                                 int maxX, int maxZ, int maxY)
+    {
+        return new Region(id, claimId, "world", UUID.randomUUID(), null, 0,
+                minX, minY, minZ, maxX, maxY, maxZ);
+    }
+
+    private static Claim claim(long id, UUID owner, Claim parent)
+    {
+        Claim claim = new Claim();
+        claim.id = id;
+        claim.ownerID = owner;
+        claim.parent = parent;
+        claim.managers = new ArrayList<>();
+        return claim;
+    }
+
+    private static World fakeWorld(String name)
+    {
+        return (World) Proxy.newProxyInstance(
+                Gp3dTest.class.getClassLoader(),
+                new Class<?>[] { World.class },
+                (proxy, method, methodArgs) -> switch (method.getName())
+                {
+                    case "getName" -> name;
+                    case "getMinHeight" -> -64;
+                    case "getMaxHeight" -> 320;
+                    case "equals" -> proxy == methodArgs[0];
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "toString" -> "World(" + name + ")";
+                    default -> defaultValue(method.getReturnType());
+                });
+    }
+
+    private static Object defaultValue(Class<?> type)
+    {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == double.class) return 0.0d;
+        if (type == float.class) return 0.0f;
+        return null;
+    }
+
+    private static final class NoopStorage implements com.avernix.gp3d.storage.RegionStorage
+    {
+        public void initialise() {}
+        public List<Region> loadRegions() { return new ArrayList<>(); }
+        public long nextId() { return 1L; }
+        public void saveRegionAsync(Region region) {}
+        public void saveTrustAsync(Region region) {}
+        public void deleteRegionAsync(long regionId) {}
+        public void deleteRegionsForClaimAsync(long claimId) {}
+        public String describe() { return "in-memory (test)"; }
+        public void shutdown() {}
+    }
+
+    private static void section(String name)
+    {
+        System.out.println();
+        System.out.println("== " + name);
+    }
+
+    private static void check(String label, boolean condition)
+    {
+        if (condition) { passed++; System.out.println("  ok   " + label); }
+        else { failed++; System.out.println("  FAIL " + label); }
+    }
+}

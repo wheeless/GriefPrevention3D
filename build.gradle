@@ -1,0 +1,81 @@
+plugins {
+    id 'java'
+}
+
+group = 'com.avernix'
+version = '1.0.0'
+
+// The shipped jar is compiled against the OLDEST supported Paper API and targets Java 21 bytecode.
+// That is what makes one jar cover both the 1.21.x line (Java 21 servers) and the 26.x line
+// (Java 25 servers): every API member used exists in both, and a Java 25 JVM runs Java 21 bytecode.
+//
+// To re-verify against a newer server line — say when 26.3 ships — compile against it directly:
+//   gradle crossCheck -PpaperApi=26.3.build.1-stable -PpaperJdk=25
+// A clean compile there means the API surface this plugin binds to is unchanged.
+def paperApi = findProperty('paperApi') ?: '1.21.11-R0.1-SNAPSHOT'
+def paperJdk = ((findProperty('paperJdk') ?: '21') as String) as Integer
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(paperJdk)
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+    maven { url = 'https://jitpack.io' }
+}
+
+// GriefPrevention is provided by the server at runtime; we only compile against it.
+// A jar dropped in libs/ wins, so you can build against the exact build your server runs.
+// Otherwise it resolves from JitPack, which is what CI uses — no binary in the repo.
+def localGriefPrevention = file('libs/GriefPrevention.jar')
+def griefPrevention = localGriefPrevention.exists()
+        ? files(localGriefPrevention)
+        : 'com.github.GriefPrevention:GriefPrevention:16.18.7'
+
+dependencies {
+    compileOnly "io.papermc.paper:paper-api:${paperApi}"
+    compileOnly griefPrevention
+    // Loaded at runtime by the server via `libraries:` in plugin.yml.
+    compileOnly 'org.xerial:sqlite-jdbc:3.46.1.3'
+
+    testImplementation sourceSets.main.output
+    testImplementation "io.papermc.paper:paper-api:${paperApi}"
+    testImplementation griefPrevention
+    testRuntimeOnly 'org.xerial:sqlite-jdbc:3.46.1.3'
+    testRuntimeOnly 'com.mysql:mysql-connector-j:26.7.0'
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = paperJdk
+}
+
+processResources {
+    filesMatching('plugin.yml') {
+        expand(version: project.version)
+    }
+}
+
+// `gradle verify` runs the logic tests: trust hierarchy, containment, stacked and nested
+// region resolution, claim-chain lookup, and a real SQLite round trip.
+tasks.register('verify', JavaExec) {
+    group = 'verification'
+    description = 'Runs the GriefPrevention3D logic tests.'
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'me.ryanhamshire.GriefPrevention.Gp3dTest'
+}
+
+// Compile-only check against whichever API line was passed in; see the note above.
+tasks.register('crossCheck') {
+    group = 'verification'
+    description = 'Compiles against the Paper API given by -PpaperApi to confirm the surface still exists.'
+    dependsOn 'compileJava'
+    doLast { println "Compiled cleanly against paper-api ${paperApi} (Java ${paperJdk})." }
+}
+
+// The harness is a plain main() rather than JUnit, so the built-in test task has nothing to run.
+tasks.named('test') { enabled = false }
+tasks.named('check') { dependsOn 'verify' }

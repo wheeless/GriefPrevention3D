@@ -1,0 +1,31 @@
+name: GriefPrevention3D
+main: com.avernix.gp3d.GP3DPlugin
+version: '${version}'
+api-version: '1.21'
+author: Avernix Technologies
+description: Vertically bounded (3D) regions inside GriefPrevention claims.
+depend: [GriefPrevention]
+
+# Downloaded by the server on first start. Both are declared because the storage backend is
+# chosen at runtime in config.yml.
+libraries:
+  - org.xerial:sqlite-jdbc:3.46.1.3
+  - com.mysql:mysql-connector-j:26.7.0
+
+commands:
+  3dclaim:
+    description: Create and manage vertically bounded regions inside your claims.
+    usage: /<command> [wand|height|confirm|cancel|info|list|delete|trust|untrust|show|migrate]
+    aliases: [3dc, claim3d]
+    permission: gp3d.use
+
+permissions:
+  gp3d.use:
+    description: Enter 3D claim mode and create 3D regions inside claims you own or manage.
+    default: true
+  gp3d.admin:
+    description: Manage any 3D region regardless of ownership, and bypass region limits.
+    default: op
+  gp3d.unlimited:
+    description: Exempt from the 3D region limit.
+    default: op

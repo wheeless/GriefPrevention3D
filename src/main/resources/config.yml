@@ -1,0 +1,69 @@
+# GriefPrevention3D
+#
+# Adds vertically bounded regions inside existing GriefPrevention claims. A region carves a
+# height band out of a claim: inside the band only region-trusted players may act, outside it
+# the claim behaves exactly as it always has.
+#
+# Regions are stored separately from GriefPrevention, keyed by its claim id.
+# GriefPrevention's own data is never modified.
+
+storage:
+  # sqlite (default, zero setup) or mysql (also works with MariaDB).
+  type: sqlite
+
+  # Table names are prefixed with this. Two servers sharing one MySQL database MUST use
+  # different prefixes: region ids and GriefPrevention claim ids are per-server counters,
+  # so sharing a prefix would make them collide.
+  table-prefix: gp3d_
+
+  sqlite:
+    file: regions.db
+
+  mysql:
+    host: localhost
+    port: 3306
+    database: minecraft
+    username: root
+    password: ''
+    properties: 'useSSL=false&allowPublicKeyRetrieval=true&characterEncoding=utf8'
+
+# After changing the backend, import your existing regions with:
+#   /3dclaim migrate <the backend you came from>
+# Without it the new database starts empty and every existing region silently stops protecting.
+
+# The item used to select the two footprint corners while in 3D claim mode.
+wand: GOLDEN_HOE
+
+# How many regions a player may own. -1 means unlimited.
+# Override per rank with the gp3d.limit.<number> permission node, e.g. gp3d.limit.25.
+default-region-limit: -1
+
+visualization:
+  corner: GLOWSTONE
+  bottom: LIME_STAINED_GLASS
+  top: LIGHT_BLUE_STAINED_GLASS
+  seconds: 15
+
+messages:
+  prefix: '&8[&b3D&8] &r'
+  mode-on: '&b3D claim mode enabled. &7Left-click a block for corner 1, right-click for corner 2.'
+  mode-off: '&73D claim mode disabled.'
+  no-permission: "&cYou don't have permission to do that."
+  corner-first: '&aCorner 1 set &7at {x}, {y}, {z}&a. Now right-click the opposite corner.'
+  corner-second: '&aCorner 2 set &7at {x}, {y}, {z}&a.'
+  wand-given: "&aHere's your 3D claim wand."
+  selection-incomplete: '&cSelect both corners first.'
+  not-in-claim: '&cBoth corners must be inside the same claim.'
+  not-your-claim: '&cYou can only create 3D regions inside claims you own or manage.'
+  band-invalid: "&cThat isn't a valid height range for this world."
+  band-set: '&aHeight set to &fBottom: {bottom} &7/ &fTop: {top}&a.'
+  region-created: '&aCreated 3D region &f#{id} &a- &7{bounds}'
+  region-deleted: '&aDeleted 3D region &f#{id}&a.'
+  region-not-found: '&cNo 3D region here.'
+  limit-reached: "&cYou've reached your limit of &f{limit} &c3D regions."
+  cancelled: '&7Selection cancelled.'
+  trust-granted: '&aGranted &f{player} &a{level} trust in region &f#{id}&a.'
+  trust-revoked: "&aRevoked &f{player}&a's trust in region &f#{id}&a."
+  trust-none: '&cThat player has no trust in this region.'
+  player-unknown: '&cNever seen a player called &f{player}&c.'
+  denial: "&cThat belongs to a 3D region (Y {bottom}-{top}) you don't have {level} trust in."

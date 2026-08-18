@@ -1,0 +1,31 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+gradle-app.setting
+
+# GriefPrevention is resolved from JitPack in CI. Drop a jar here to build against a specific
+# local build instead; build.gradle prefers it when present.
+libs/
+
+# Plugin runtime data (never commit a live region database)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+out/
+bin/
+
+# OS
+.DS_Store
+Thumbs.db

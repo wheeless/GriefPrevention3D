@@ -1,0 +1,99 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    # The MySQL adapter's DDL and upsert differ from SQLite and are not checked by compiling,
+    # so the test suite runs against a real server rather than trusting the dialect.
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: testpw
+          MARIADB_DATABASE: gp3d
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -uroot -ptestpw --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 21 builds the shipped jar; 25 is required to even resolve the Paper 26.x artifacts.
+      - name: Set up JDKs
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: |
+            21
+            25
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build and test
+        run: ./gradlew build --no-daemon
+        env:
+          GP3D_MYSQL_HOST: 127.0.0.1
+          GP3D_MYSQL_PORT: '3306'
+          GP3D_MYSQL_DB: gp3d
+          GP3D_MYSQL_USER: root
+          GP3D_MYSQL_PASS: testpw
+
+      # Guards the "one jar covers every version" claim: if a future Paper line moves or removes
+      # anything this plugin binds to, the compile fails here instead of on someone's server.
+      - name: Cross-check against Paper 26.x
+        run: |
+          ./gradlew crossCheck --no-daemon -PpaperApi=26.1.2.build.74-stable -PpaperJdk=25
+          ./gradlew crossCheck --no-daemon -PpaperApi=26.2.build.112-stable -PpaperJdk=25
+
+      - name: Stage jar under a stable name
+        run: cp build/libs/GriefPrevention3D-*.jar GriefPrevention3D.jar
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: GriefPrevention3D
+          path: GriefPrevention3D.jar
+          if-no-files-found: error
+
+      # Rolling prerelease so a test server can wget the newest main build without tagging.
+      - name: Publish dev build
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          name: Development build
+          body: |
+            Rolling build of the latest `main`. Overwritten on every push.
+
+            ```
+            wget https://github.com/${{ github.repository }}/releases/download/dev/GriefPrevention3D.jar
+            ```
+          prerelease: true
+          files: GriefPrevention3D.jar
+
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: GriefPrevention3D.jar
+          generate_release_notes: true
