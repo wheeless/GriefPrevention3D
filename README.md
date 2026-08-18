@@ -367,6 +367,24 @@ CI does exactly that against a MariaDB service container, and additionally cross
 Paper 26.1.2 and 26.2 on every push, so the single-jar compatibility claim above stays enforced
 rather than assumed.
 
+## Licence
+
+Copyright (C) 2026 Trarn. Released under **GPL-3.0-or-later** — every source file carries the
+standard notice, so authorship is asserted per file rather than only in `LICENSE`.
+
+This is not a free choice here: GriefPrevention is **GPL-3.0-or-later** and offers no
+linking exception, and this plugin is a derivative work of it in every practical sense — it compiles
+against GP's classes, links against them at runtime in the same JVM, and reads internals like
+`Claim.parent`, `Claim.managers` and `PlayerData.ignoreClaims` directly. A permissive licence here
+would be in tension with that.
+
+The licence is bundled into the jar at `META-INF/LICENSE`, since the jar is distributed on its own
+through releases.
+
+Note that GPL permits selling — what it forbids is closing the source. Anyone redistributing this,
+paid or not, must ship the source under the same terms, which leaves their buyers free to pass it on.
+Stripping the copyright notices is a licence violation the copyright holder can act on.
+
 ---
 
 By Trarn.

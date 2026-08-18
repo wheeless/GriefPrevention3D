@@ -1,3 +1,4 @@
+# GriefPrevention3D - Copyright (C) 2026 Trarn - GPL-3.0-or-later
 name: GriefPrevention3D
 main: com.trarn.gp3d.GP3DPlugin
 version: '${version}'

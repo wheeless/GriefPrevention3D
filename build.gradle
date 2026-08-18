@@ -1,3 +1,4 @@
+// GriefPrevention3D - Copyright (C) 2026 Trarn - GPL-3.0-or-later
 plugins {
     id 'java'
 }
@@ -51,6 +52,14 @@ dependencies {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = paperJdk
+}
+
+// GPL-3.0 asks that the licence travel with the binary, and this jar is distributed on its own
+// through GitHub releases rather than alongside the repository.
+tasks.named('jar') {
+    from(layout.projectDirectory.file('LICENSE')) {
+        into 'META-INF'
+    }
 }
 
 processResources {
