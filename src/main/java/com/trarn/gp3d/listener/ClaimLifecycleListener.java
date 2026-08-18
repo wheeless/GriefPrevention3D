@@ -13,8 +13,10 @@ import java.util.logging.Logger;
  * Keeps region storage in step with GriefPrevention's claims.
  *
  * <p>Regions reference claims by id across two separate datastores, so a deleted claim would
- * otherwise leave regions pointing at nothing — and GP reuses claim ids from its own counter,
- * which would eventually attach a stale region to an unrelated new claim.
+ * otherwise leave regions protecting nothing. GriefPrevention's id counter is monotonic and
+ * persisted, so ids are not normally reissued; the cleanup also covers the case where that counter
+ * is reset or restored from an older backup while claim data survives, which would reissue ids and
+ * attach a stale region to an unrelated new claim.
  */
 public final class ClaimLifecycleListener implements Listener
 {

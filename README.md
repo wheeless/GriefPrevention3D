@@ -283,9 +283,13 @@ happens off the main thread.
 
 Because regions reference claims by id across two datastores, integrity is maintained in two places:
 `ClaimDeletedEvent` drops a deleted claim's regions (and its subdivisions' recursively), and a
-startup sweep prunes regions whose claim vanished while the server was down. This matters — GP reuses
-claim ids from its own counter, so a stale region would eventually attach itself to an unrelated new
-claim.
+startup sweep prunes regions whose claim vanished while the server was down.
+
+GriefPrevention's claim id counter is monotonic and persisted (`nextClaimID` in flat-file mode, a
+table row in database mode), so a deleted claim's id is not normally handed out again. The cleanup
+still matters: it stops the sidecar accumulating rows that protect nothing, and it covers the case
+where GP's counter is reset or restored from an older backup while claim data survives — at which
+point ids *would* be reissued and a stale region would attach itself to an unrelated new claim.
 
 ## Configuration
 
