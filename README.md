@@ -137,6 +137,24 @@ interface can never drift apart. Confirm, and the region is created and outlined
 Switching to the wand outlines the region you are standing in, the same way GriefPrevention's golden
 shovel outlines the claim you are standing in. Switching away clears it.
 
+### Resizing
+
+Both axes are editable, and each uses the tool that suits it:
+
+```
+/3dclaim resize height 60 100    # change just the band
+/3dclaim resize                  # reselect the footprint with the wand
+```
+
+Typing exact Y values beats clicking for a height, and clicking corners beats typing coordinates for
+a footprint, so neither form is a wrapper around the other. The wand form keeps the current height
+unless you change it in the prompt, and both preserve the region's id, owner, name and **trust list** —
+that is the point of resizing rather than deleting and recreating.
+
+Both run the same validation as creation: the region must stay inside its claim, and must not overlap
+another. A resize is checked against every region *except itself*, so growing a region a few blocks
+is not treated as colliding with where it currently is.
+
 Regions may not overlap. If a selection would share any block with an existing region the creation is
 refused and the region in the way is outlined so you can see what you hit. Bands stacked at different
 heights are fine — that is the point — but a region may not nest inside, enclose, or clip another.
@@ -153,6 +171,8 @@ heights are fine — that is the point — but a region may not nest inside, enc
 | `/3dclaim info` | Describe the region you're standing in |
 | `/3dclaim list` | List your regions |
 | `/3dclaim delete [id]` | Delete a region |
+| `/3dclaim resize` | Reselect the footprint with the wand |
+| `/3dclaim resize height <bottom> <top>` | Change only the height |
 | `/3dclaim trust <player> [build\|container\|access\|permission]` | Grant trust inside the region |
 | `/3dclaim untrust <player>` | Revoke trust |
 | `/3dclaim show [id]` | Outline a region |

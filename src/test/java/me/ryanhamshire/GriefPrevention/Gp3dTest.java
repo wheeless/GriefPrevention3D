@@ -38,6 +38,7 @@ public class Gp3dTest
         nestedRegions();
         claimChainLookup();
         overlapRule();
+        resizing();
         bypassRule();
         storageRoundTrip();
         migration();
@@ -423,6 +424,50 @@ public class Gp3dTest
         Region atY85 = manager.findGoverning(claim, new Location(world, 5, 85, 5));
         check("stacked regions still resolve independently",
                 atY70 != null && atY70.getId() == 1 && atY85 != null && atY85.getId() == 2);
+    }
+
+    /** A resize must keep the region's identity, and must not be allowed to eat a neighbour. */
+    private static void resizing() throws Exception
+    {
+        section("resizing");
+        RegionManager manager = manager();
+
+        UUID friend = UUID.randomUUID();
+        Region shop = region(1, 100, 0, 0, 64, 15, 15, 79);
+        shop.setTrust(friend, ClaimPermission.Container);
+        UUID owner = shop.getOwner();
+        shop.setName("Shop");
+        manager.add(shop);
+
+        Region upstairs = region(2, 100, 0, 0, 90, 15, 15, 99);
+        manager.add(upstairs);
+
+        // Growing into free space below is fine.
+        shop.setBounds(0, 60, 0, 15, 85, 15);
+        check("bounds updated", shop.getMinY() == 60 && shop.getMaxY() == 85);
+        check("id preserved across resize", shop.getId() == 1);
+        check("owner preserved across resize", owner.equals(shop.getOwner()));
+        check("name preserved across resize", "Shop".equals(shop.getName()));
+        check("trust preserved across resize", shop.grants(friend, ClaimPermission.Container));
+        check("still indexed under the same id", manager.byId(1) == shop);
+
+        // Self-exclusion: a region must not collide with its own current box.
+        check("region does not clash with itself", manager.findOverlap(shop) == null);
+
+        // Growing up into the neighbour must be caught.
+        check("resize into a neighbour is detected",
+                manager.findOverlap(shop.getWorld(), 0, 60, 0, 15, 95, 15, shop.getId()) != null);
+
+        // ignoreId excludes exactly one region and nothing else: upstairs' own box reads as
+        // occupied normally, and free only when upstairs itself is the one being ignored.
+        check("neighbour's box is occupied by default",
+                manager.findOverlap(shop.getWorld(), 0, 90, 0, 15, 99, 15, -1L) != null);
+        check("ignoreId excludes only the named region",
+                manager.findOverlap(shop.getWorld(), 0, 90, 0, 15, 99, 15, 2L) == null);
+
+        Claim claim = claim(100, UUID.randomUUID(), null);
+        check("resized region governs its new lower band",
+                manager.findGoverning(claim, new Location(world, 5, 62, 5)) == shop);
     }
 
     // ---- helpers -------------------------------------------------------------------------

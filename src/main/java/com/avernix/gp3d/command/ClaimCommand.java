@@ -37,7 +37,7 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
 {
     private static final List<String> SUBCOMMANDS = List.of(
             "wand", "height", "confirm", "cancel", "info", "list", "delete",
-            "trust", "untrust", "show", "migrate");
+            "trust", "untrust", "show", "migrate", "resize");
 
     private final GP3DPlugin plugin;
 
@@ -88,6 +88,7 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
             case "trust" -> trust(player, args);
             case "untrust" -> untrust(player, args);
             case "show" -> show(player, args);
+            case "resize" -> resize(player, args);
             case "migrate" -> migrate(player, args);
             default -> help(player);
         }
@@ -163,6 +164,20 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
             return;
         }
 
+        if (session.isResizing())
+        {
+            Region target = plugin.regions().byId(session.getResizingRegionId());
+            if (target == null)
+            {
+                player.sendMessage(plugin.messages().get("region-not-found"));
+                plugin.sessions().stop(player);
+                return;
+            }
+            applyResize(player, target, session.getMinX(), session.getMinZ(),
+                    session.getMaxX(), session.getMaxZ(), session.getBottom(), session.getTop());
+            return;
+        }
+
         World world = session.getWorld();
         Location cornerA = new Location(world, session.getMinX(), session.getBottom(), session.getMinZ());
         Location cornerB = new Location(world, session.getMaxX(), session.getTop(), session.getMaxZ());
@@ -212,6 +227,110 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
         plugin.sessions().stop(player);
 
         player.sendMessage(plugin.messages().get("region-created",
+                "id", String.valueOf(region.getId()),
+                "bounds", region.describeBounds()));
+        plugin.visualizer().show(player, region);
+    }
+
+    /**
+     * Two ways in, because the two axes want different tools.
+     *
+     * <p>{@code /3dclaim resize height <bottom> <top>} edits only the band, where exact numbers are
+     * the point and clicking would be a worse way to say "65 to 100". Plain {@code /3dclaim resize}
+     * starts a wand selection for the footprint, where clicking corners is obviously better than
+     * typing coordinates. Both land in the same validation.
+     */
+    private void resize(Player player, String[] args)
+    {
+        Region region = regionAt(player);
+        if (region == null)
+        {
+            player.sendMessage(plugin.messages().get("region-not-found"));
+            return;
+        }
+        if (!mayManageRegion(player, region))
+        {
+            player.sendMessage(plugin.messages().get("no-permission"));
+            return;
+        }
+
+        if (args.length >= 2 && args[1].equalsIgnoreCase("height"))
+        {
+            if (args.length < 4)
+            {
+                player.sendMessage(Component.text("Usage: /3dclaim resize height <bottom> <top>",
+                        NamedTextColor.RED));
+                return;
+            }
+
+            Integer bottom = parseInt(args[2]);
+            Integer top = parseInt(args[3]);
+            World world = player.getWorld();
+            if (bottom == null || top == null
+                    || Math.min(bottom, top) < world.getMinHeight()
+                    || Math.max(bottom, top) >= world.getMaxHeight())
+            {
+                player.sendMessage(plugin.messages().get("band-invalid"));
+                return;
+            }
+
+            applyResize(player, region, region.getMinX(), region.getMinZ(),
+                    region.getMaxX(), region.getMaxZ(), bottom, top);
+            return;
+        }
+
+        // Footprint resize: reuse the ordinary selection flow, bound to this region.
+        SelectionSession session = plugin.sessions().start(player);
+        session.setResizing(region.getId());
+        session.seedBand(region.getMinY(), region.getMaxY());
+
+        player.sendMessage(plugin.messages().get("resize-mode",
+                "id", String.valueOf(region.getId()),
+                "name", region.getName() == null ? ("#" + region.getId()) : region.getName()));
+        if (!player.getInventory().contains(plugin.wandMaterial())) giveWand(player);
+        plugin.visualizer().show(player, region);
+    }
+
+    /** Shared by both resize forms and the wand confirm path. */
+    private void applyResize(Player player, Region region, int minX, int minZ, int maxX, int maxZ,
+                             int bottom, int top)
+    {
+        World world = player.getServer().getWorld(region.getWorld());
+        if (world == null)
+        {
+            player.sendMessage(plugin.messages().get("region-not-found"));
+            return;
+        }
+
+        // The region must still fit inside the claim it belongs to.
+        Claim claim = GriefPrevention.instance.dataStore.getClaim(region.getClaimId());
+        Location cornerA = new Location(world, minX, bottom, minZ);
+        Location cornerB = new Location(world, maxX, top, maxZ);
+        if (claim == null || !claim.contains(cornerA, true, false) || !claim.contains(cornerB, true, false))
+        {
+            player.sendMessage(plugin.messages().get("not-in-claim"));
+            return;
+        }
+
+        // Ignore itself, or a region would always collide with its own current box.
+        Region clash = plugin.regions().findOverlap(region.getWorld(), Math.min(minX, maxX),
+                Math.min(bottom, top), Math.min(minZ, maxZ), Math.max(minX, maxX),
+                Math.max(bottom, top), Math.max(minZ, maxZ), region.getId());
+        if (clash != null)
+        {
+            player.sendMessage(plugin.messages().get("overlaps",
+                    "id", String.valueOf(clash.getId()),
+                    "name", clash.getName() == null ? ("#" + clash.getId()) : clash.getName(),
+                    "bounds", clash.describeBounds()));
+            plugin.visualizer().show(player, clash);
+            return;
+        }
+
+        region.setBounds(minX, bottom, minZ, maxX, top, maxZ);
+        plugin.regions().persist(region);
+        plugin.sessions().stop(player);
+
+        player.sendMessage(plugin.messages().get("resized",
                 "id", String.valueOf(region.getId()),
                 "bounds", region.describeBounds()));
         plugin.visualizer().show(player, region);
@@ -505,6 +624,8 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
                 "/3dclaim info — describe the region you're standing in",
                 "/3dclaim list — list your regions",
                 "/3dclaim delete [id] — delete a region",
+                "/3dclaim resize — reselect the footprint with the wand",
+                "/3dclaim resize height <bottom> <top> — change just the height",
                 "/3dclaim trust <player> [level] — grant trust inside the region",
                 "/3dclaim untrust <player> — revoke trust",
                 "/3dclaim show [id] — outline a region",
@@ -644,6 +765,10 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
             names.add("public");
             for (Player player : Bukkit.getOnlinePlayers()) names.add(player.getName());
             return partial(args[1], names);
+        }
+        if (args.length == 2 && sub.equals("resize"))
+        {
+            return partial(args[1], List.of("height"));
         }
         if (args.length == 2 && sub.equals("migrate"))
         {

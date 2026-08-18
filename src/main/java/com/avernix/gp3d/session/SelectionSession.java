@@ -15,6 +15,19 @@ public final class SelectionSession
     private Integer x1, z1, y1;
     private Integer x2, z2, y2;
     private Integer bottom, top;
+    private Long resizingRegionId;
+
+    /** Non-null when this selection edits an existing region rather than creating a new one. */
+    public Long getResizingRegionId() { return resizingRegionId; }
+    public boolean isResizing() { return resizingRegionId != null; }
+    public void setResizing(long regionId) { this.resizingRegionId = regionId; }
+
+    /** Pre-loads the band so a resize starts from the region's current height, not the clicked blocks. */
+    public void seedBand(int bottom, int top)
+    {
+        this.bottom = Math.min(bottom, top);
+        this.top = Math.max(bottom, top);
+    }
 
     public boolean hasFirst() { return x1 != null; }
     public boolean hasSecond() { return x2 != null; }
@@ -81,5 +94,6 @@ public final class SelectionSession
         x1 = z1 = y1 = null;
         x2 = z2 = y2 = null;
         bottom = top = null;
+        resizingRegionId = null;
     }
 }

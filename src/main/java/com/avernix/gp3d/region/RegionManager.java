@@ -216,6 +216,12 @@ public final class RegionManager
         return list.size();
     }
 
+    /** Writes an edited region back to storage. The in-memory indexes key on id, which never changes. */
+    public synchronized void persist(Region region)
+    {
+        storage.saveRegionAsync(region);
+    }
+
     public synchronized void persistTrust(Region region)
     {
         storage.saveTrustAsync(region);

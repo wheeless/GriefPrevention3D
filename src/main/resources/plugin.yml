@@ -15,7 +15,7 @@ libraries:
 commands:
   3dclaim:
     description: Create and manage vertically bounded regions inside your claims.
-    usage: /<command> [wand|height|confirm|cancel|info|list|delete|trust|untrust|show|migrate]
+    usage: /<command> [wand|height|confirm|cancel|info|list|delete|resize|trust|untrust|show|migrate]
     aliases: [3dc, claim3d]
     permission: gp3d.use
 

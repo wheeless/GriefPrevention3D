@@ -25,8 +25,8 @@ public final class Region
     private long id;
     private final long claimId;
     private final String world;
-    private final int minX, minY, minZ;
-    private final int maxX, maxY, maxZ;
+    private int minX, minY, minZ;
+    private int maxX, maxY, maxZ;
     private final UUID owner;
     private String name;
     private int priority;
@@ -41,6 +41,15 @@ public final class Region
         this.owner = owner;
         this.name = name;
         this.priority = priority;
+        setBounds(x1, y1, z1, x2, y2, z2);
+    }
+
+    /**
+     * Moves the box while keeping the region's identity — id, owner, name and trust list all
+     * survive, which is the whole reason resizing exists rather than delete-and-recreate.
+     */
+    public void setBounds(int x1, int y1, int z1, int x2, int y2, int z2)
+    {
         this.minX = Math.min(x1, x2);
         this.minY = Math.min(y1, y2);
         this.minZ = Math.min(z1, z2);

@@ -35,6 +35,8 @@ public final class Messages
         DEFAULTS.put("region-not-found", "&cNo 3D region here.");
         DEFAULTS.put("limit-reached", "&cYou've reached your limit of &f{limit} &c3D regions.");
         DEFAULTS.put("standing-in", "&7You are in 3D region &b{name} &7(Y {bottom}-{top}).");
+        DEFAULTS.put("resize-mode", "&bResizing 3D region {name}&b. &7Left-click a block for corner 1, right-click for corner 2. Height is kept unless you change it.");
+        DEFAULTS.put("resized", "&aResized 3D region &f#{id} &a— &7{bounds}");
         DEFAULTS.put("cancelled", "&7Selection cancelled.");
         DEFAULTS.put("overlaps", "&cThat would overlap 3D region &f{name} &7({bounds})&c. Regions can sit above or below each other, but never share blocks.");
         DEFAULTS.put("trust-granted", "&aGranted &f{player} &a{level} trust in region &f#{id}&a.");
