@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'com.trarn'
-version = '1.0.0'
+version = '0.0.2'
 
 // The shipped jar is compiled against the OLDEST supported Paper API and targets Java 21 bytecode.
 // That is what makes one jar cover both the 1.21.x line (Java 21 servers) and the 26.x line
