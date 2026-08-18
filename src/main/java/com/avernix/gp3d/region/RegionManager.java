@@ -9,7 +9,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -24,6 +26,15 @@ public final class RegionManager
     private final Map<Long, List<Region>> byClaim = new HashMap<>();
     private final Map<Long, Region> byId = new HashMap<>();
 
+    /**
+     * World name to the chunk keys any region touches.
+     *
+     * <p>Boundary protection has to run on events that fire constantly — every flowing water tick,
+     * every piston pulse on a redstone farm. This turns the common "nowhere near a region" case into
+     * one hash lookup instead of a claim lookup plus a scan.
+     */
+    private final Map<String, Set<Long>> chunksWithRegions = new HashMap<>();
+
     public RegionManager(RegionStorage storage)
     {
         this.storage = storage;
@@ -37,6 +48,7 @@ public final class RegionManager
         {
             index(region);
         }
+        rebuildChunkIndex();
     }
 
     private void index(Region region)
@@ -44,6 +56,37 @@ public final class RegionManager
         byId.put(region.getId(), region);
         byClaim.computeIfAbsent(region.getClaimId(), k -> new ArrayList<>()).add(region);
     }
+
+    private static long chunkKey(int blockX, int blockZ)
+    {
+        return ((long) (blockX >> 4) << 32) | ((blockZ >> 4) & 0xFFFFFFFFL);
+    }
+
+    /** Rebuilt wholesale on mutation, which is rare; the read path is what has to be quick. */
+    private void rebuildChunkIndex()
+    {
+        chunksWithRegions.clear();
+        for (Region region : byId.values())
+        {
+            Set<Long> keys = chunksWithRegions.computeIfAbsent(region.getWorld(), k -> new HashSet<>());
+            for (int x = region.getMinX(); x <= region.getMaxX() + 15; x += 16)
+            {
+                for (int z = region.getMinZ(); z <= region.getMaxZ() + 15; z += 16)
+                {
+                    keys.add(chunkKey(Math.min(x, region.getMaxX()), Math.min(z, region.getMaxZ())));
+                }
+            }
+        }
+    }
+
+    /** Cheap rejection: false means no region touches this block's chunk, so nothing can cross. */
+    public synchronized boolean mayHaveRegionAt(String world, int blockX, int blockZ)
+    {
+        Set<Long> keys = chunksWithRegions.get(world);
+        return keys != null && keys.contains(chunkKey(blockX, blockZ));
+    }
+
+    public synchronized boolean isEmpty() { return byId.isEmpty(); }
 
     public synchronized int size() { return byId.size(); }
 
@@ -186,6 +229,7 @@ public final class RegionManager
     public synchronized void add(Region region)
     {
         index(region);
+        rebuildChunkIndex();
         storage.saveRegionAsync(region);
     }
 
@@ -199,6 +243,7 @@ public final class RegionManager
             list.remove(region);
             if (list.isEmpty()) byClaim.remove(region.getClaimId());
         }
+        rebuildChunkIndex();
         storage.deleteRegionAsync(regionId);
         return true;
     }
@@ -212,6 +257,7 @@ public final class RegionManager
         {
             byId.remove(region.getId());
         }
+        rebuildChunkIndex();
         storage.deleteRegionsForClaimAsync(claimId);
         return list.size();
     }
@@ -219,6 +265,7 @@ public final class RegionManager
     /** Writes an edited region back to storage. The in-memory indexes key on id, which never changes. */
     public synchronized void persist(Region region)
     {
+        rebuildChunkIndex();   // bounds may have moved
         storage.saveRegionAsync(region);
     }
 

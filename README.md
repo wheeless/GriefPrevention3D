@@ -296,10 +296,35 @@ visualization:
 messages: { ... }               # every player-facing string, with & colour codes
 ```
 
+## Boundary protection
+
+Trust checks only happen where GriefPrevention has a player to check. A piston has none — GP treats
+it as a claim-boundary question and never asks about trust — which left a real escalation: a player
+trusted only inside a band could place a piston in it and push blocks out into the parent claim.
+
+So physics is stopped at the region boundary the same way GP stops it at the claim boundary:
+
+| Vector | Behaviour |
+| --- | --- |
+| Pistons (extend and retract) | Cancelled if any moved block, or its destination, sits across a boundary |
+| Liquid flow | Cancelled if water or lava would spill across a boundary |
+| Fire and block spread | Cancelled across a boundary |
+| Tree growth | Only the blocks landing on the far side are dropped, so the rest still grows |
+
+It applies in **both directions**. Outward is the escalation you would expect; inward matters too,
+otherwise anyone with parent-claim trust could reach into a rented band with a piston.
+
+These are blocked outright rather than permission-checked, because at the time the events fire there
+is no player to attribute them to — which is exactly why the trust listener never saw them.
+
+Because these events are hot (every flowing-water tick, every piston pulse), the check starts with a
+chunk-level index lookup, so anything not near a region costs one hash probe. Set
+`protect-boundaries: false` if it conflicts with an existing farm.
+
 ## Limits worth knowing
 
-- **Per-player trust only.** Claim-wide toggles — explosions, fire spread, mob griefing, PvP — are
-  properties of the claim, not of a trust check, so they stay claim-wide and ignore region bounds.
+- **Claim-wide toggles stay claim-wide.** Explosions, mob griefing and PvP are properties of the
+  claim rather than of a trust check, so they ignore region bounds.
 - **GP's own visualisation is still flat.** The golden shovel and `/claim` inspect draw the claim's
   footprint with no height. Use `/3dclaim show` or `/3dclaim info` to see a band.
 - **Regions are free.** They don't consume claim blocks, matching how GP treats subdivisions.

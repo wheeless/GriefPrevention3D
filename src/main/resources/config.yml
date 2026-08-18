@@ -34,6 +34,12 @@ storage:
 # The item used to select the two footprint corners while in 3D claim mode.
 wand: GOLDEN_HOE
 
+# Stop physics carrying someone's reach across a region boundary: pistons pushing or pulling
+# blocks across it, liquids spilling over it, fire spreading through it, trees growing past it.
+# Without this, a player trusted only inside a band can place a piston in it and push blocks out
+# into the parent claim. Turn off only if it conflicts with an existing farm.
+protect-boundaries: true
+
 # How many regions a player may own. -1 means unlimited.
 # Override per rank with the gp3d.limit.<number> permission node, e.g. gp3d.limit.25.
 default-region-limit: -1

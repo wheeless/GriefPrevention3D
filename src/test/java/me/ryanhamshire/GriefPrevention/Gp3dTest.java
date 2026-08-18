@@ -39,6 +39,7 @@ public class Gp3dTest
         claimChainLookup();
         overlapRule();
         resizing();
+        chunkIndex();
         bypassRule();
         storageRoundTrip();
         migration();
@@ -468,6 +469,52 @@ public class Gp3dTest
         Claim claim = claim(100, UUID.randomUUID(), null);
         check("resized region governs its new lower band",
                 manager.findGoverning(claim, new Location(world, 5, 62, 5)) == shop);
+    }
+
+    /**
+     * The chunk index is the fast rejection for boundary protection, running on every flowing-water
+     * tick. A false negative there would silently disable the protection, so it is checked directly.
+     */
+    private static void chunkIndex() throws Exception
+    {
+        section("boundary chunk index");
+        RegionManager manager = manager();
+        check("empty manager reports empty", manager.isEmpty());
+        check("nothing is relevant when there are no regions",
+                !manager.mayHaveRegionAt("world", 0, 0));
+
+        // Spans chunks (0,0) and (1,1): blocks 8..20 on both axes.
+        Region region = region(1, 100, 8, 8, 64, 20, 20, 79);
+        manager.add(region);
+
+        check("manager no longer empty", !manager.isEmpty());
+        check("origin chunk flagged", manager.mayHaveRegionAt("world", 8, 8));
+        check("far corner chunk flagged", manager.mayHaveRegionAt("world", 20, 20));
+        check("chunk 0,1 flagged", manager.mayHaveRegionAt("world", 8, 20));
+        check("chunk 1,0 flagged", manager.mayHaveRegionAt("world", 20, 8));
+        check("a block in a flagged chunk but outside the box still counts",
+                manager.mayHaveRegionAt("world", 0, 0));
+        check("distant chunk not flagged", manager.mayHaveRegionAt("world", 500, 500) == false);
+        check("other world not flagged", !manager.mayHaveRegionAt("nether", 8, 8));
+
+        // Negative coordinates use arithmetic shift, which floors — the common off-by-one here.
+        Region negative = region(2, 100, -40, -40, 64, -35, -35, 79);
+        manager.add(negative);
+        check("negative-coordinate chunk flagged", manager.mayHaveRegionAt("world", -40, -40));
+        check("negative chunk neighbour not flagged", manager.mayHaveRegionAt("world", -200, -200) == false);
+
+        // A single-block region must still register its own chunk.
+        Region tiny = region(3, 100, 1000, 1000, 70, 1000, 1000, 70);
+        manager.add(tiny);
+        check("single-block region flags its chunk", manager.mayHaveRegionAt("world", 1000, 1000));
+
+        manager.remove(3);
+        check("index updated after removal", !manager.mayHaveRegionAt("world", 1000, 1000));
+
+        // Resizing moves the footprint, so the index has to follow.
+        negative.setBounds(-40, 64, -40, -35, 79, -35);
+        manager.persist(negative);
+        check("index still correct after resize", manager.mayHaveRegionAt("world", -40, -40));
     }
 
     // ---- helpers -------------------------------------------------------------------------

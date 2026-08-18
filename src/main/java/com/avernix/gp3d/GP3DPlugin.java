@@ -1,6 +1,7 @@
 package com.avernix.gp3d;
 
 import com.avernix.gp3d.command.ClaimCommand;
+import com.avernix.gp3d.listener.BoundaryListener;
 import com.avernix.gp3d.listener.ClaimLifecycleListener;
 import com.avernix.gp3d.listener.PermissionListener;
 import com.avernix.gp3d.listener.WandListener;
@@ -38,6 +39,7 @@ public final class GP3DPlugin extends JavaPlugin
     private String storageType = StorageFactory.SQLITE;
     private Material wandMaterial = Material.GOLDEN_HOE;
     private int defaultRegionLimit = -1;
+    private boolean protectBoundaries = true;
 
     @Override
     public void onEnable()
@@ -98,6 +100,7 @@ public final class GP3DPlugin extends JavaPlugin
 
         getServer().getPluginManager().registerEvents(new PermissionListener(this, regions), this);
         getServer().getPluginManager().registerEvents(new WandListener(this), this);
+        getServer().getPluginManager().registerEvents(new BoundaryListener(this, regions), this);
         getServer().getPluginManager().registerEvents(
                 new ClaimLifecycleListener(regions, getLogger()), this);
 
@@ -127,6 +130,7 @@ public final class GP3DPlugin extends JavaPlugin
         wandMaterial = wand;
 
         defaultRegionLimit = getConfig().getInt("default-region-limit", -1);
+        protectBoundaries = getConfig().getBoolean("protect-boundaries", true);
 
         visualizer = new Visualizer(this);
         visualizer.configure(
@@ -163,4 +167,5 @@ public final class GP3DPlugin extends JavaPlugin
     public Visualizer visualizer() { return visualizer; }
     public Material wandMaterial() { return wandMaterial; }
     public int defaultRegionLimit() { return defaultRegionLimit; }
+    public boolean protectBoundaries() { return protectBoundaries; }
 }
