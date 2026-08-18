@@ -3,6 +3,7 @@ package com.avernix.gp3d.listener;
 import com.avernix.gp3d.GP3DPlugin;
 import com.avernix.gp3d.region.Region;
 import com.avernix.gp3d.region.RegionManager;
+import com.avernix.gp3d.util.BypassRule;
 import com.avernix.gp3d.util.EventLocations;
 import com.avernix.gp3d.util.Permissions;
 import me.ryanhamshire.GriefPrevention.Claim;
@@ -53,8 +54,8 @@ public final class PermissionListener implements Listener
         Player player = event.getCheckedPlayer();
         UUID uuid = event.getCheckedUUID();
 
-        // Admins bypassing claims are already handled by GP; never tighten on top of that.
-        if (player != null && isBypassing(player)) return;
+        // Admins actively bypassing claims are already allowed by GP; never tighten on top of that.
+        if (player != null && isBypassing(player, claim, event.getRequiredPermission())) return;
 
         Location location = EventLocations.resolve(event.getTriggeringEvent());
         if (location == null && player != null) location = player.getLocation();
@@ -86,18 +87,19 @@ public final class PermissionListener implements Listener
         }
     }
 
-    private boolean isBypassing(Player player)
+    private boolean isBypassing(Player player, Claim claim, ClaimPermission required)
     {
-        if (player.hasPermission(Permissions.GP_IGNORE_CLAIMS)
-                || player.hasPermission(Permissions.GP_DELETE_CLAIMS))
-        {
-            return true;
-        }
-
         GriefPrevention gp = GriefPrevention.instance;
         if (gp == null || gp.dataStore == null) return false;
+
         PlayerData data = gp.dataStore.getPlayerData(player.getUniqueId());
-        return data != null && data.ignoreClaims;
+        return BypassRule.bypasses(
+                claim.isAdminClaim(),
+                player.hasPermission(Permissions.GP_ADMIN_CLAIMS),
+                data != null && data.ignoreClaims,
+                player.hasPermission(Permissions.GP_IGNORE_CLAIMS),
+                player.hasPermission(Permissions.GP_DELETE_CLAIMS),
+                required);
     }
 
     /**

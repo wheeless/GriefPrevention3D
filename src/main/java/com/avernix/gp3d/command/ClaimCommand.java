@@ -49,9 +49,18 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args)
     {
+        // Migrating backends is an operations task, and the natural place to run it is the server
+        // console — which is exactly where you are after editing config.yml and restarting.
+        if (args.length > 0 && args[0].equalsIgnoreCase("migrate"))
+        {
+            migrate(sender, args);
+            return true;
+        }
+
         if (!(sender instanceof Player player))
         {
-            sender.sendMessage("This command can only be used in game.");
+            sender.sendMessage("Only '3dclaim migrate' works from the console. "
+                    + "Everything else needs a player, because it acts on where you are standing.");
             return true;
         }
 
@@ -168,6 +177,19 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
         if (!mayManageClaim(player, claim))
         {
             player.sendMessage(plugin.messages().get("not-your-claim"));
+            return;
+        }
+
+        Region clash = plugin.regions().findOverlap(world.getName(),
+                session.getMinX(), session.getBottom(), session.getMinZ(),
+                session.getMaxX(), session.getTop(), session.getMaxZ(), -1L);
+        if (clash != null)
+        {
+            player.sendMessage(plugin.messages().get("overlaps",
+                    "id", String.valueOf(clash.getId()),
+                    "name", clash.getName() == null ? ("#" + clash.getId()) : clash.getName(),
+                    "bounds", clash.describeBounds()));
+            plugin.visualizer().show(player, clash);
             return;
         }
 
@@ -380,19 +402,19 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
      * MySQL database, restart, and every existing region simply stops protecting anything. Nobody
      * notices until a player reports grief.
      */
-    private void migrate(Player player, String[] args)
+    private void migrate(CommandSender sender, String[] args)
     {
-        if (!player.hasPermission(Permissions.ADMIN))
+        if (!sender.hasPermission(Permissions.ADMIN))
         {
-            player.sendMessage(plugin.messages().get("no-permission"));
+            sender.sendMessage(plugin.messages().get("no-permission"));
             return;
         }
 
         if (args.length < 2)
         {
-            player.sendMessage(Component.text("Usage: /3dclaim migrate <sqlite|mysql>",
+            sender.sendMessage(Component.text("Usage: /3dclaim migrate <sqlite|mysql>",
                     NamedTextColor.RED));
-            player.sendMessage(Component.text("Imports regions FROM that backend INTO the active one ("
+            sender.sendMessage(Component.text("Imports regions FROM that backend INTO the active one ("
                     + plugin.storageType() + ").", NamedTextColor.GRAY));
             return;
         }
@@ -400,18 +422,18 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
         String source = StorageFactory.normalise(args[1]);
         if (source == null)
         {
-            player.sendMessage(Component.text("Unknown storage type: " + args[1], NamedTextColor.RED));
+            sender.sendMessage(Component.text("Unknown storage type: " + args[1], NamedTextColor.RED));
             return;
         }
         if (source.equals(plugin.storageType()))
         {
-            player.sendMessage(Component.text(
+            sender.sendMessage(Component.text(
                     "That is already the active backend; there is nothing to import.",
                     NamedTextColor.RED));
             return;
         }
 
-        player.sendMessage(Component.text("Reading regions from " + source + "...",
+        sender.sendMessage(Component.text("Reading regions from " + source + "...",
                 NamedTextColor.GRAY));
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () ->
@@ -428,7 +450,7 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
             {
                 plugin.getLogger().log(java.util.logging.Level.SEVERE,
                         "Migration source could not be opened", e);
-                Bukkit.getScheduler().runTask(plugin, () -> player.sendMessage(Component.text(
+                Bukkit.getScheduler().runTask(plugin, () -> sender.sendMessage(Component.text(
                         "Could not read from " + source + "; see console for details.",
                         NamedTextColor.RED)));
                 return;
@@ -439,30 +461,36 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
             }
 
             // Applied on the main thread: RegionManager is what the permission check reads.
-            Bukkit.getScheduler().runTask(plugin, () -> applyMigration(player, source, imported));
+            Bukkit.getScheduler().runTask(plugin, () -> applyMigration(sender, source, imported));
         });
     }
 
-    private void applyMigration(Player player, String source, List<Region> imported)
+    private void applyMigration(CommandSender sender, String source, List<Region> imported)
     {
         RegionMigrator.Result result = RegionMigrator.importInto(
                 imported, plugin.regions(),
                 claimId -> GriefPrevention.instance.dataStore.getClaim(claimId) != null);
 
-        player.sendMessage(Component.text("Imported " + result.imported() + " region(s) from "
+        sender.sendMessage(Component.text("Imported " + result.imported() + " region(s) from "
                 + source + " into " + plugin.storageType() + ".", NamedTextColor.GREEN));
         if (result.renumbered() > 0)
         {
-            player.sendMessage(Component.text("  " + result.renumbered()
+            sender.sendMessage(Component.text("  " + result.renumbered()
                     + " were renumbered to avoid colliding with existing ids.", NamedTextColor.GRAY));
         }
         if (result.skipped() > 0)
         {
-            player.sendMessage(Component.text("  " + result.skipped()
+            sender.sendMessage(Component.text("  " + result.skipped()
                     + " skipped: their claim no longer exists.", NamedTextColor.GRAY));
         }
+        if (result.conflicted() > 0)
+        {
+            sender.sendMessage(Component.text("  " + result.conflicted()
+                    + " skipped: they would overlap a region already here.", NamedTextColor.GRAY));
+        }
         plugin.getLogger().info("Migration from " + source + ": " + result.imported()
-                + " imported, " + result.renumbered() + " renumbered, " + result.skipped() + " skipped.");
+                + " imported, " + result.renumbered() + " renumbered, " + result.skipped()
+                + " skipped, " + result.conflicted() + " conflicted.");
     }
 
     private void help(Player player)

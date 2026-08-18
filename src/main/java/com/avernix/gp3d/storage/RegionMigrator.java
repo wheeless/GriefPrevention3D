@@ -16,7 +16,7 @@ public final class RegionMigrator
 {
     private RegionMigrator() {}
 
-    public record Result(int imported, int renumbered, int skipped) {}
+    public record Result(int imported, int renumbered, int skipped, int conflicted) {}
 
     /**
      * @param source      regions read out of the other backend
@@ -26,7 +26,7 @@ public final class RegionMigrator
     public static Result importInto(List<Region> source, RegionManager target,
                                     LongPredicate claimExists)
     {
-        int imported = 0, renumbered = 0, skipped = 0;
+        int imported = 0, renumbered = 0, skipped = 0, conflicted = 0;
 
         for (Region region : source)
         {
@@ -35,6 +35,13 @@ public final class RegionMigrator
             if (!claimExists.test(region.getClaimId()))
             {
                 skipped++;
+                continue;
+            }
+
+            // Importing an overlap would reintroduce exactly the ambiguity creation forbids.
+            if (target.findOverlap(region) != null)
+            {
+                conflicted++;
                 continue;
             }
 
@@ -48,6 +55,6 @@ public final class RegionMigrator
             imported++;
         }
 
-        return new Result(imported, renumbered, skipped);
+        return new Result(imported, renumbered, skipped, conflicted);
     }
 }

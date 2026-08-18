@@ -1,18 +1,23 @@
 package com.avernix.gp3d.listener;
 
 import com.avernix.gp3d.GP3DPlugin;
+import com.avernix.gp3d.region.Region;
 import com.avernix.gp3d.session.SelectionSession;
 import com.avernix.gp3d.util.BandPrompt;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import me.ryanhamshire.GriefPrevention.Claim;
+import me.ryanhamshire.GriefPrevention.GriefPrevention;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 
 /** Turns wand clicks into corner selections while the player is in 3D claim mode. */
 public final class WandListener implements Listener
@@ -72,6 +77,37 @@ public final class WandListener implements Listener
                     session.getMinX(), session.getBottom(), session.getMinZ(),
                     session.getMaxX(), session.getTop(), session.getMaxZ());
         }
+    }
+
+    /**
+     * Outlines the region you are standing in when you switch to the wand, the way GriefPrevention's
+     * golden shovel outlines the claim you are standing in.
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onItemHeld(PlayerItemHeldEvent event)
+    {
+        Player player = event.getPlayer();
+        ItemStack held = player.getInventory().getItem(event.getNewSlot());
+
+        if (held == null || held.getType() != plugin.wandMaterial())
+        {
+            // Switching away from the wand drops the outline rather than leaving it to time out.
+            plugin.visualizer().clear(player);
+            return;
+        }
+
+        Claim claim = GriefPrevention.instance.dataStore.getClaimAt(player.getLocation(), true, null);
+        if (claim == null) return;
+
+        Region region = plugin.regions().findGoverning(claim, player.getLocation());
+        if (region == null) return;
+
+        plugin.visualizer().show(player, region);
+        player.sendMessage(plugin.messages().get("standing-in",
+                "id", String.valueOf(region.getId()),
+                "name", region.getName() == null ? ("#" + region.getId()) : region.getName(),
+                "bottom", String.valueOf(region.getMinY()),
+                "top", String.valueOf(region.getMaxY())));
     }
 
     @EventHandler

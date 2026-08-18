@@ -16,4 +16,5 @@ public final class Permissions
     /** GriefPrevention's own bypass nodes, honoured so admins are never blocked by a region. */
     public static final String GP_IGNORE_CLAIMS = "griefprevention.ignoreclaims";
     public static final String GP_DELETE_CLAIMS = "griefprevention.deleteclaims";
+    public static final String GP_ADMIN_CLAIMS = "griefprevention.adminclaims";
 }

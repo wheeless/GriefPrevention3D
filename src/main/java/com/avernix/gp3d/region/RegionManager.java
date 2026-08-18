@@ -73,7 +73,10 @@ public final class RegionManager
 
     /**
      * The region that should govern {@code location}, searching the claim and its ancestors.
-     * Innermost wins: highest priority first, then smallest volume.
+     *
+     * <p>Regions are prevented from overlapping at creation and on import, so in practice at most
+     * one can match. The innermost-wins ordering (highest priority first, then smallest volume)
+     * remains as a deterministic fallback for data edited outside the plugin.
      */
     public synchronized Region findGoverning(Claim claim, Location location)
     {
@@ -129,6 +132,31 @@ public final class RegionManager
         }
         found.sort(INNERMOST_FIRST);
         return found;
+    }
+
+    /**
+     * The first region sharing a block with this box, or null if the space is free.
+     *
+     * <p>Regions are required not to overlap at all, so that "which region governs this block" has
+     * exactly one answer. Nesting is rejected for the same reason, matching GriefPrevention's own
+     * refusal to nest subdivisions.
+     */
+    public synchronized Region findOverlap(String world, int minX, int minY, int minZ,
+                                           int maxX, int maxY, int maxZ, long ignoreId)
+    {
+        for (Region region : byId.values())
+        {
+            if (region.getId() == ignoreId) continue;
+            if (region.intersects(world, minX, minY, minZ, maxX, maxY, maxZ)) return region;
+        }
+        return null;
+    }
+
+    public synchronized Region findOverlap(Region candidate)
+    {
+        return findOverlap(candidate.getWorld(), candidate.getMinX(), candidate.getMinY(),
+                candidate.getMinZ(), candidate.getMaxX(), candidate.getMaxY(),
+                candidate.getMaxZ(), candidate.getId());
     }
 
     public synchronized int countOwnedBy(UUID owner)

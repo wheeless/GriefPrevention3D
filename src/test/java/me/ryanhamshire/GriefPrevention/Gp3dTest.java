@@ -2,6 +2,7 @@ package me.ryanhamshire.GriefPrevention;
 
 import com.avernix.gp3d.region.Region;
 import com.avernix.gp3d.region.RegionManager;
+import com.avernix.gp3d.util.BypassRule;
 import com.avernix.gp3d.storage.MySqlRegionStorage;
 import com.avernix.gp3d.storage.RegionMigrator;
 import com.avernix.gp3d.storage.RegionStorage;
@@ -36,6 +37,8 @@ public class Gp3dTest
         stackedRegions();
         nestedRegions();
         claimChainLookup();
+        overlapRule();
+        bypassRule();
         storageRoundTrip();
         migration();
         mysqlRoundTrip();
@@ -266,6 +269,13 @@ public class Gp3dTest
         check("renumbered region kept its trust", collides.grants(friend, ClaimPermission.Build));
         check("clean region kept its id", target.byId(7) == clean);
         check("orphan was not imported", target.byId(8) == null);
+        check("nothing conflicted in this batch", result.conflicted() == 0);
+
+        // An import that would land on top of an existing region is refused, not merged.
+        Region wouldOverlap = region(9, 100, 2, 2, 66, 8, 8, 70);
+        RegionMigrator.Result second = RegionMigrator.importInto(
+                List.of(wouldOverlap), target, claimId -> claimId == 100);
+        check("overlapping import refused", second.conflicted() == 1 && second.imported() == 0);
     }
 
     /**
@@ -337,6 +347,82 @@ public class Gp3dTest
         empty.loadAll();
         check("deletion persisted", empty.byId(id) == null);
         third.shutdown();
+    }
+
+    /**
+     * A region must never be more permissive than the claim around it, and must not quietly stop
+     * applying the moment someone is opped.
+     */
+    private static void bypassRule()
+    {
+        section("admin bypass mirrors GriefPrevention");
+        ClaimPermission build = ClaimPermission.Build;
+
+        // The trap: every op holds griefprevention.ignoreclaims by default.
+        check("op WITHOUT /ignoreclaims does not bypass",
+                !BypassRule.bypasses(false, false, false, true, true, build));
+        check("op WITH /ignoreclaims does bypass",
+                BypassRule.bypasses(false, false, true, true, true, build));
+        check("toggle without the permission does not bypass",
+                !BypassRule.bypasses(false, false, true, false, false, build));
+        check("ordinary player never bypasses",
+                !BypassRule.bypasses(false, false, false, false, false, build));
+
+        check("adminclaims permission bypasses an admin claim",
+                BypassRule.bypasses(true, true, false, false, false, build));
+        check("adminclaims permission is irrelevant on a normal claim",
+                !BypassRule.bypasses(false, true, false, false, false, build));
+
+        check("deleteclaims bypasses Edit outright",
+                BypassRule.bypasses(false, false, false, false, true, ClaimPermission.Edit));
+        check("ignoreclaims alone does not bypass Edit",
+                !BypassRule.bypasses(false, false, true, true, false, ClaimPermission.Edit));
+    }
+
+    /**
+     * Regions must never share a block, so that exactly one region governs any position. The
+     * important half of this is what stays *allowed*: bands stacked at different heights.
+     */
+    private static void overlapRule() throws Exception
+    {
+        section("overlap rule");
+        RegionManager manager = manager();
+
+        Region ground = region(1, 100, 0, 0, 64, 15, 15, 79);
+        manager.add(ground);
+
+        // Stacking is the whole point, so it must not read as a collision.
+        Region upstairs = region(2, 100, 0, 0, 80, 15, 15, 95);
+        check("band directly above does not overlap", manager.findOverlap(upstairs) == null);
+
+        Region touching = region(3, 100, 0, 0, 79, 15, 15, 95);
+        check("band sharing one Y level does overlap", manager.findOverlap(touching) != null);
+
+        Region nested = region(4, 100, 5, 5, 70, 10, 10, 75);
+        check("region nested inside another overlaps", manager.findOverlap(nested) != null);
+
+        Region enclosing = region(5, 100, -10, -10, 0, 40, 40, 200);
+        check("region enclosing another overlaps", manager.findOverlap(enclosing) != null);
+
+        Region corner = region(6, 100, 15, 15, 70, 25, 25, 75);
+        check("partial corner overlap detected", manager.findOverlap(corner) != null);
+
+        Region beside = region(7, 100, 16, 0, 64, 30, 15, 79);
+        check("region beside another does not overlap", manager.findOverlap(beside) == null);
+
+        Region elsewhere = new Region(8, 100, "nether", UUID.randomUUID(), null, 0,
+                0, 64, 0, 15, 79, 15);
+        check("same box in another world does not overlap", manager.findOverlap(elsewhere) == null);
+
+        check("a region does not overlap itself", manager.findOverlap(ground) == null);
+
+        // Once stacked, both must still resolve correctly.
+        manager.add(upstairs);
+        Claim claim = claim(100, UUID.randomUUID(), null);
+        Region atY70 = manager.findGoverning(claim, new Location(world, 5, 70, 5));
+        Region atY85 = manager.findGoverning(claim, new Location(world, 5, 85, 5));
+        check("stacked regions still resolve independently",
+                atY70 != null && atY70.getId() == 1 && atY85 != null && atY85.getId() == 2);
     }
 
     // ---- helpers -------------------------------------------------------------------------

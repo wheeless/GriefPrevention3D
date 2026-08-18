@@ -134,6 +134,13 @@ are set you get the height prompt:
 The buttons are clickable and each just runs the equivalent command, so the chat UI and the command
 interface can never drift apart. Confirm, and the region is created and outlined in-world.
 
+Switching to the wand outlines the region you are standing in, the same way GriefPrevention's golden
+shovel outlines the claim you are standing in. Switching away clears it.
+
+Regions may not overlap. If a selection would share any block with an existing region the creation is
+refused and the region in the way is outlined so you can see what you hit. Bands stacked at different
+heights are fine — that is the point — but a region may not nest inside, enclose, or clip another.
+
 ### Commands
 
 | Command | What it does |
@@ -163,8 +170,13 @@ GriefPrevention's own hierarchy, so build implies container implies access.
 | `gp3d.unlimited` | op | Exempt from the region limit |
 | `gp3d.limit.<n>` | — | Per-rank region cap, e.g. `gp3d.limit.25`; highest matching node wins |
 
-GriefPrevention's own `griefprevention.ignoreclaims` and `griefprevention.deleteclaims` are
-honoured — an admin bypassing claims is never blocked by a region.
+GriefPrevention's bypass rule is mirrored exactly, so a region is never more permissive than the
+claim around it. Bypass requires `/ignoreclaims` to be toggled **on** *and* the matching permission —
+holding the permission alone is not enough.
+
+> **Testing note:** `griefprevention.ignoreclaims` is granted to every operator by default, so if
+> bypass keyed off the permission alone, regions would appear not to work the moment you opped
+> yourself. They do apply to ops; run `/ignoreclaims` to deliberately bypass them, and again to stop.
 
 ## Trust model: sealed box
 
@@ -230,11 +242,17 @@ reporting grief. So after switching, import the old data:
 /3dclaim migrate mysql       # run this after switching TO sqlite
 ```
 
+This is the one subcommand that also works from the **server console** (without the leading slash),
+which is where you already are after editing `config.yml` and restarting. Everything else needs a
+player, because it acts on where you are standing.
+
 It reads from the named backend and writes into whichever one is currently active, using the same
 connection settings from `config.yml`. Regions whose id collides with an existing one are renumbered
-rather than overwriting anything, and regions whose claim no longer exists are skipped instead of
-being left to attach themselves to whatever claim GriefPrevention next gives that id to. The command
-reports all three counts, and reading happens off the main thread.
+rather than overwriting anything, regions whose claim no longer exists are skipped instead of being
+left to attach themselves to whatever claim GriefPrevention next gives that id to, and regions that
+would overlap something already present are refused rather than merged — importing one would
+reintroduce exactly the ambiguity creation forbids. The command reports all four counts, and reading
+happens off the main thread.
 
 ### Referential integrity
 
@@ -265,8 +283,10 @@ messages: { ... }               # every player-facing string, with & colour code
 - **GP's own visualisation is still flat.** The golden shovel and `/claim` inspect draw the claim's
   footprint with no height. Use `/3dclaim show` or `/3dclaim info` to see a band.
 - **Regions are free.** They don't consume claim blocks, matching how GP treats subdivisions.
-- **Regions may overlap.** The innermost wins: highest `priority`, then smallest volume. Stacked
-  bands at different heights simply never both match.
+- **Regions never overlap.** Creation is refused if the new box would share a block with an
+  existing one, so exactly one region governs any position. Nesting is refused for the same reason,
+  matching GriefPrevention's own refusal to nest subdivisions. Stacking is unaffected — bands at
+  different heights share no blocks.
 
 ## Building
 

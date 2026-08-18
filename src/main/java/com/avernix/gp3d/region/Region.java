@@ -83,6 +83,27 @@ public final class Region
         return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
     }
 
+    /**
+     * True if this region shares any block with the given box.
+     *
+     * <p>Deliberately a full 3D test rather than a footprint test: two bands stacked at different
+     * heights share a footprint but no blocks, and allowing that is the entire point of the plugin.
+     */
+    public boolean intersects(String otherWorld, int oMinX, int oMinY, int oMinZ,
+                              int oMaxX, int oMaxY, int oMaxZ)
+    {
+        return world.equals(otherWorld)
+                && minX <= oMaxX && maxX >= oMinX
+                && minY <= oMaxY && maxY >= oMinY
+                && minZ <= oMaxZ && maxZ >= oMinZ;
+    }
+
+    public boolean intersects(Region other)
+    {
+        return intersects(other.world, other.minX, other.minY, other.minZ,
+                other.maxX, other.maxY, other.maxZ);
+    }
+
     /** Used to pick the innermost region when several overlap. */
     public long getVolume()
     {

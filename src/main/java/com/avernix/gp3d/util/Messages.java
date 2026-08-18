@@ -34,7 +34,9 @@ public final class Messages
         DEFAULTS.put("region-deleted", "&aDeleted 3D region &f#{id}&a.");
         DEFAULTS.put("region-not-found", "&cNo 3D region here.");
         DEFAULTS.put("limit-reached", "&cYou've reached your limit of &f{limit} &c3D regions.");
+        DEFAULTS.put("standing-in", "&7You are in 3D region &b{name} &7(Y {bottom}-{top}).");
         DEFAULTS.put("cancelled", "&7Selection cancelled.");
+        DEFAULTS.put("overlaps", "&cThat would overlap 3D region &f{name} &7({bounds})&c. Regions can sit above or below each other, but never share blocks.");
         DEFAULTS.put("trust-granted", "&aGranted &f{player} &a{level} trust in region &f#{id}&a.");
         DEFAULTS.put("trust-revoked", "&aRevoked &f{player}&a's trust in region &f#{id}&a.");
         DEFAULTS.put("trust-none", "&cThat player has no trust in this region.");

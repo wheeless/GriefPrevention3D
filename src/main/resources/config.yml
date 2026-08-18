@@ -61,6 +61,8 @@ messages:
   region-deleted: '&aDeleted 3D region &f#{id}&a.'
   region-not-found: '&cNo 3D region here.'
   limit-reached: "&cYou've reached your limit of &f{limit} &c3D regions."
+  standing-in: '&7You are in 3D region &b{name} &7(Y {bottom}-{top}).'
+  overlaps: "&cThat would overlap 3D region &f{name} &7({bounds})&c. Regions can sit above or below each other, but never share blocks."
   cancelled: '&7Selection cancelled.'
   trust-granted: '&aGranted &f{player} &a{level} trust in region &f#{id}&a.'
   trust-revoked: "&aRevoked &f{player}&a's trust in region &f#{id}&a."
