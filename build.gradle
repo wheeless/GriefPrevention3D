@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-group = 'com.avernix'
+group = 'com.trarn'
 version = '1.0.0'
 
 // The shipped jar is compiled against the OLDEST supported Paper API and targets Java 21 bytecode.

@@ -1,4 +1,4 @@
-package com.avernix.gp3d.region;
+package com.trarn.gp3d.region;
 
 import me.ryanhamshire.GriefPrevention.ClaimPermission;
 import org.bukkit.Location;

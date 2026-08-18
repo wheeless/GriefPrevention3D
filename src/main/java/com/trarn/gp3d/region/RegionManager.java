@@ -1,6 +1,6 @@
-package com.avernix.gp3d.region;
+package com.trarn.gp3d.region;
 
-import com.avernix.gp3d.storage.RegionStorage;
+import com.trarn.gp3d.storage.RegionStorage;
 import me.ryanhamshire.GriefPrevention.Claim;
 import org.bukkit.Location;
 

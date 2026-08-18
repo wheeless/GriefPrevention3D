@@ -1,6 +1,6 @@
-package com.avernix.gp3d.listener;
+package com.trarn.gp3d.listener;
 
-import com.avernix.gp3d.region.RegionManager;
+import com.trarn.gp3d.region.RegionManager;
 import me.ryanhamshire.GriefPrevention.Claim;
 import me.ryanhamshire.GriefPrevention.events.ClaimDeletedEvent;
 import org.bukkit.event.EventHandler;

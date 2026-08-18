@@ -118,8 +118,12 @@ exactly which driver is missing rather than failing obscurely.
 
 ## Usage
 
-Enter 3D claim mode with `/3dclaim`. You get a wand (a golden hoe by default); left-click a block
-for corner 1 and right-click for corner 2, exactly like picking a normal claim. Once both corners
+Enter 3D claim mode with `/3dclaim`, then left-click a block for corner 1 and right-click for corner
+2, exactly like picking a normal claim. Selection uses a wand — a golden hoe by default, configurable.
+
+The wand is an **ordinary item**, so `gp3d.wand` gates only the free handout, not the ability to
+select: anyone can craft a golden hoe and use it. It defaults to `op` so the server decides who gets
+one for free, and players without it are simply told which item to hold. Once both corners
 are set you get the height prompt:
 
 ```
@@ -164,7 +168,7 @@ heights are fine — that is the point — but a region may not nest inside, enc
 | Command | What it does |
 | --- | --- |
 | `/3dclaim` | Toggle 3D claim mode (and hand out the wand) |
-| `/3dclaim wand` | Get the selection wand |
+| `/3dclaim wand` | Get the selection wand (needs `gp3d.wand`) |
 | `/3dclaim height <bottom> <top>` | Set the vertical band |
 | `/3dclaim confirm [name]` | Create the region |
 | `/3dclaim cancel` | Discard the selection |
@@ -186,6 +190,7 @@ GriefPrevention's own hierarchy, so build implies container implies access.
 | Node | Default | Grants |
 | --- | --- | --- |
 | `gp3d.use` | everyone | Enter 3D claim mode; create regions in claims you own or manage |
+| `gp3d.wand` | op | Receive a wand from `/3dclaim wand` |
 | `gp3d.admin` | op | Manage any region, bypass limits |
 | `gp3d.unlimited` | op | Exempt from the region limit |
 | `gp3d.limit.<n>` | — | Per-rank region cap, e.g. `gp3d.limit.25`; highest matching node wins |
@@ -357,3 +362,7 @@ GP3D_MYSQL_USER=root GP3D_MYSQL_PASS=secret ./gradlew verify
 CI does exactly that against a MariaDB service container, and additionally cross-compiles against
 Paper 26.1.2 and 26.2 on every push, so the single-jar compatibility claim above stays enforced
 rather than assumed.
+
+---
+
+By Trarn.

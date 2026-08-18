@@ -1,4 +1,4 @@
-package com.avernix.gp3d.util;
+package com.trarn.gp3d.util;
 
 import me.ryanhamshire.GriefPrevention.ClaimPermission;
 

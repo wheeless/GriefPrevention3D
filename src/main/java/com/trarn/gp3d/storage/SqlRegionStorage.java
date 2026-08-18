@@ -1,6 +1,6 @@
-package com.avernix.gp3d.storage;
+package com.trarn.gp3d.storage;
 
-import com.avernix.gp3d.region.Region;
+import com.trarn.gp3d.region.Region;
 import me.ryanhamshire.GriefPrevention.ClaimPermission;
 
 import java.sql.Connection;

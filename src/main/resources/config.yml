@@ -58,6 +58,7 @@ messages:
   corner-first: '&aCorner 1 set &7at {x}, {y}, {z}&a. Now right-click the opposite corner.'
   corner-second: '&aCorner 2 set &7at {x}, {y}, {z}&a.'
   wand-given: "&aHere's your 3D claim wand."
+  wand-hint: '&7Hold a &f{item} &7to select corners.'
   selection-incomplete: '&cSelect both corners first.'
   not-in-claim: '&cBoth corners must be inside the same claim.'
   not-your-claim: '&cYou can only create 3D regions inside claims you own or manage.'

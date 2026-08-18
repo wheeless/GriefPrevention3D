@@ -1,6 +1,6 @@
-package com.avernix.gp3d.util;
+package com.trarn.gp3d.util;
 
-import com.avernix.gp3d.region.Region;
+import com.trarn.gp3d.region.Region;
 import me.ryanhamshire.GriefPrevention.ClaimPermission;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
@@ -25,6 +25,7 @@ public final class Messages
         DEFAULTS.put("corner-first", "&aCorner 1 set &7at {x}, {y}, {z}&a. Now right-click the opposite corner.");
         DEFAULTS.put("corner-second", "&aCorner 2 set &7at {x}, {y}, {z}&a.");
         DEFAULTS.put("wand-given", "&aHere's your 3D claim wand.");
+        DEFAULTS.put("wand-hint", "&7Hold a &f{item} &7to select corners.");
         DEFAULTS.put("selection-incomplete", "&cSelect both corners first.");
         DEFAULTS.put("not-in-claim", "&cBoth corners must be inside the same claim.");
         DEFAULTS.put("not-your-claim", "&cYou can only create 3D regions inside claims you own or manage.");

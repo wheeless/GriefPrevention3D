@@ -1,4 +1,4 @@
-package com.avernix.gp3d.session;
+package com.trarn.gp3d.session;
 
 import org.bukkit.entity.Player;
 

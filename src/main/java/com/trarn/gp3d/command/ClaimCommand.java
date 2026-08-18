@@ -1,14 +1,14 @@
-package com.avernix.gp3d.command;
+package com.trarn.gp3d.command;
 
-import com.avernix.gp3d.GP3DPlugin;
-import com.avernix.gp3d.region.Region;
-import com.avernix.gp3d.session.SelectionSession;
-import com.avernix.gp3d.util.BandPrompt;
-import com.avernix.gp3d.util.Messages;
-import com.avernix.gp3d.storage.RegionMigrator;
-import com.avernix.gp3d.storage.RegionStorage;
-import com.avernix.gp3d.storage.StorageFactory;
-import com.avernix.gp3d.util.Permissions;
+import com.trarn.gp3d.GP3DPlugin;
+import com.trarn.gp3d.region.Region;
+import com.trarn.gp3d.session.SelectionSession;
+import com.trarn.gp3d.util.BandPrompt;
+import com.trarn.gp3d.util.Messages;
+import com.trarn.gp3d.storage.RegionMigrator;
+import com.trarn.gp3d.storage.RegionStorage;
+import com.trarn.gp3d.storage.StorageFactory;
+import com.trarn.gp3d.util.Permissions;
 import me.ryanhamshire.GriefPrevention.Claim;
 import me.ryanhamshire.GriefPrevention.ClaimPermission;
 import me.ryanhamshire.GriefPrevention.GriefPrevention;
@@ -112,6 +112,15 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
 
     private void giveWand(Player player)
     {
+        // The wand is an ordinary item, so this is a convenience rather than a capability. Refusing
+        // it leaves the player perfectly able to select with one they crafted themselves.
+        if (!player.hasPermission(Permissions.WAND))
+        {
+            player.sendMessage(plugin.messages().get("wand-hint",
+                    "item", friendlyName(plugin.wandMaterial())));
+            return;
+        }
+
         ItemStack wand = new ItemStack(plugin.wandMaterial());
         wand.editMeta(meta -> meta.displayName(
                 Component.text("3D Claim Wand", NamedTextColor.AQUA)
@@ -747,6 +756,11 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
         };
     }
 
+    private static String friendlyName(org.bukkit.Material material)
+    {
+        return material.name().toLowerCase(Locale.ROOT).replace('_', ' ');
+    }
+
     private static Integer parseInt(String raw)
     {
         try { return Integer.parseInt(raw.trim()); }
@@ -756,7 +770,13 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args)
     {
-        if (args.length == 1) return partial(args[0], SUBCOMMANDS);
+        if (args.length == 1)
+        {
+            List<String> available = new ArrayList<>(SUBCOMMANDS);
+            if (!sender.hasPermission(Permissions.WAND)) available.remove("wand");
+            if (!sender.hasPermission(Permissions.ADMIN)) available.remove("migrate");
+            return partial(args[0], available);
+        }
 
         String sub = args[0].toLowerCase(Locale.ROOT);
         if (args.length == 2 && (sub.equals("trust") || sub.equals("untrust")))
@@ -770,7 +790,9 @@ public final class ClaimCommand implements CommandExecutor, TabCompleter
         {
             return partial(args[1], List.of("height"));
         }
-        if (args.length == 2 && sub.equals("migrate"))
+        // Gated at both levels: hiding it from the subcommand list is pointless if typing
+        // "migrate " by hand still suggests the backends to someone who cannot run it.
+        if (args.length == 2 && sub.equals("migrate") && sender.hasPermission(Permissions.ADMIN))
         {
             return partial(args[1], List.of(StorageFactory.SQLITE, StorageFactory.MYSQL));
         }

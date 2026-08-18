@@ -1,8 +1,8 @@
 name: GriefPrevention3D
-main: com.avernix.gp3d.GP3DPlugin
+main: com.trarn.gp3d.GP3DPlugin
 version: '${version}'
 api-version: '1.21'
-author: Avernix Technologies
+author: Trarn
 description: Vertically bounded (3D) regions inside GriefPrevention claims.
 depend: [GriefPrevention]
 
@@ -23,6 +23,10 @@ permissions:
   gp3d.use:
     description: Enter 3D claim mode and create 3D regions inside claims you own or manage.
     default: true
+  gp3d.wand:
+    description: Receive a selection wand from /3dclaim wand. The wand is an ordinary item, so this
+      only gates the free handout - anyone can craft one and select with it.
+    default: op
   gp3d.admin:
     description: Manage any 3D region regardless of ownership, and bypass region limits.
     default: op

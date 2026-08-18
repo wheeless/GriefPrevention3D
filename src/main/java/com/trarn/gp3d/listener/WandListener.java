@@ -1,9 +1,9 @@
-package com.avernix.gp3d.listener;
+package com.trarn.gp3d.listener;
 
-import com.avernix.gp3d.GP3DPlugin;
-import com.avernix.gp3d.region.Region;
-import com.avernix.gp3d.session.SelectionSession;
-import com.avernix.gp3d.util.BandPrompt;
+import com.trarn.gp3d.GP3DPlugin;
+import com.trarn.gp3d.region.Region;
+import com.trarn.gp3d.session.SelectionSession;
+import com.trarn.gp3d.util.BandPrompt;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;

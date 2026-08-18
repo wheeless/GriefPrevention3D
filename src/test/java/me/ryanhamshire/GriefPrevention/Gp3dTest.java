@@ -1,12 +1,12 @@
 package me.ryanhamshire.GriefPrevention;
 
-import com.avernix.gp3d.region.Region;
-import com.avernix.gp3d.region.RegionManager;
-import com.avernix.gp3d.util.BypassRule;
-import com.avernix.gp3d.storage.MySqlRegionStorage;
-import com.avernix.gp3d.storage.RegionMigrator;
-import com.avernix.gp3d.storage.RegionStorage;
-import com.avernix.gp3d.storage.SqliteRegionStorage;
+import com.trarn.gp3d.region.Region;
+import com.trarn.gp3d.region.RegionManager;
+import com.trarn.gp3d.util.BypassRule;
+import com.trarn.gp3d.storage.MySqlRegionStorage;
+import com.trarn.gp3d.storage.RegionMigrator;
+import com.trarn.gp3d.storage.RegionStorage;
+import com.trarn.gp3d.storage.SqliteRegionStorage;
 import org.bukkit.Location;
 import org.bukkit.World;
 
@@ -573,7 +573,7 @@ public class Gp3dTest
         return null;
     }
 
-    private static final class NoopStorage implements com.avernix.gp3d.storage.RegionStorage
+    private static final class NoopStorage implements com.trarn.gp3d.storage.RegionStorage
     {
         public void initialise() {}
         public List<Region> loadRegions() { return new ArrayList<>(); }

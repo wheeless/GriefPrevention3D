@@ -1,4 +1,4 @@
-package com.avernix.gp3d.util;
+package com.trarn.gp3d.util;
 
 public final class Permissions
 {
@@ -6,6 +6,11 @@ public final class Permissions
 
     /** Required to enter 3D claim mode and create regions. */
     public static final String USE = "gp3d.use";
+    /**
+     * Receive a wand from {@code /3dclaim wand}. Purely a convenience: the wand is an ordinary
+     * item, so anyone can craft one and select with it. This node only gates the free handout.
+     */
+    public static final String WAND = "gp3d.wand";
     /** Manage any region regardless of ownership. */
     public static final String ADMIN = "gp3d.admin";
     /** Prefix for per-rank region limits, e.g. gp3d.limit.25. */
