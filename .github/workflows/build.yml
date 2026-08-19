@@ -7,8 +7,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# contents: publish releases. id-token + attestations: sign build provenance so the published jar
+# can be cryptographically tied back to this workflow and commit.
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: build-${{ github.ref }}
@@ -68,11 +72,45 @@ jobs:
       - name: Stage jar under a stable name
         run: cp build/libs/GriefPrevention3D-*.jar GriefPrevention3D.jar
 
+      # The build is byte-reproducible (normalised timestamps, no shaded deps, no codegen), so this
+      # checksum is exactly what an independent rebuild of the same commit produces. Published next
+      # to the jar so anyone can `sha256sum -c` a download, and printed to the run summary so the
+      # expected value is visible without downloading anything.
+      - name: Compute checksum
+        run: |
+          sha256sum GriefPrevention3D.jar | tee GriefPrevention3D.jar.sha256
+          {
+            echo "### GriefPrevention3D.jar"
+            echo ""
+            echo "commit: \`${GITHUB_SHA}\`"
+            echo ""
+            echo '```'
+            cat GriefPrevention3D.jar.sha256
+            echo '```'
+            echo ""
+            echo "Verify a download: \`sha256sum -c GriefPrevention3D.jar.sha256\`"
+            echo ""
+            echo "Or reproduce it yourself: \`git checkout ${GITHUB_SHA} && ./gradlew clean build\`,"
+            echo "then hash \`build/libs/GriefPrevention3D-*.jar\` — it will match the value above."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Cryptographic provenance: GitHub signs a statement binding this jar's digest to the commit
+      # and workflow that produced it, using its own OIDC identity. Unlike the checksum above, this
+      # cannot be forged by a tampered build — verify with `gh attestation verify`. Skipped on PRs,
+      # which cannot (and must not) write attestations.
+      - name: Attest build provenance
+        if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: GriefPrevention3D.jar
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: GriefPrevention3D
-          path: GriefPrevention3D.jar
+          path: |
+            GriefPrevention3D.jar
+            GriefPrevention3D.jar.sha256
           if-no-files-found: error
 
       # Rolling prerelease so a test server can wget the newest main build without tagging.
@@ -88,12 +126,19 @@ jobs:
             ```
             wget https://github.com/${{ github.repository }}/releases/download/dev/GriefPrevention3D.jar
             ```
+
+            SHA-256 is published as `GriefPrevention3D.jar.sha256`, and the build is signed —
+            verify with `gh attestation verify GriefPrevention3D.jar --repo ${{ github.repository }}`.
           prerelease: true
-          files: GriefPrevention3D.jar
+          files: |
+            GriefPrevention3D.jar
+            GriefPrevention3D.jar.sha256
 
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: GriefPrevention3D.jar
+          files: |
+            GriefPrevention3D.jar
+            GriefPrevention3D.jar.sha256
           generate_release_notes: true

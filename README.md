@@ -367,6 +367,38 @@ CI does exactly that against a MariaDB service container, and additionally cross
 Paper 26.1.2 and 26.2 on every push, so the single-jar compatibility claim above stays enforced
 rather than assumed.
 
+## Verifying your download
+
+Every release ships the jar with a checksum, a signed build attestation, and a byte-reproducible
+build — three independent ways to confirm the jar is exactly what this source produces, nothing added.
+
+**1. Checksum** — catches a corrupted or swapped download:
+
+```bash
+sha256sum -c GriefPrevention3D.jar.sha256
+```
+
+**2. Signed provenance** — GitHub cryptographically ties the jar to the commit and workflow that
+built it. Unlike a plain checksum, this cannot be forged by a tampered build:
+
+```bash
+gh attestation verify GriefPrevention3D.jar --repo <owner>/GriefPrevention3D
+```
+
+**3. Reproduce it yourself** — the strongest check, because it trusts nobody. The build is
+byte-reproducible (normalised timestamps, no shaded dependencies, no code generation), so rebuilding
+the release's commit produces a jar with the identical hash:
+
+```bash
+git checkout <release-commit>
+./gradlew clean build
+sha256sum build/libs/GriefPrevention3D-*.jar   # matches the published .sha256
+```
+
+A match proves the published jar contains exactly the code in this repository at that commit. A plain
+git commit SHA alone does **not** prove this — the build step sits between source and jar — which is
+why the reproducible hash, not the source SHA, is the thing worth comparing.
+
 ## Licence
 
 Copyright (C) 2026 Trarn. Released under **GPL-3.0-or-later** — every source file carries the
